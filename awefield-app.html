@@ -1,0 +1,1382 @@
+<!--
+  AWE FIELD — Listener App v3
+
+  FULL FLOW:
+   onboarding (3 q) → manifesto (experience-tiered) → mode (solo/group/live)
+   → category (Arrival/Healing/Expansion, expandable) → depth (Gentle/Deep/Immersive)
+   → check-in (sliders + chips + intention + bothering text)
+   → recommendation (narrative only — no radar)  → accept / find another
+   → prep checklist  → 10s countdown
+   → player (HRV-driven hypnotic breath + live HRV + music BPM + finish only)
+   → reflection (6 phenomenological questions)
+   → state delta (6-axis hexagon radar + HRV chart + artist card)
+   → my field (6-dim archive)
+
+  Notes:
+  • Phenomenological dimensions (Herbst/van Zyl-aligned):
+      Somatic · Cognitive · Visual · Metaphoric · Memories · Emotional
+  • Autonomic (HRV) shown separately as a continuous trace.
+  • Onboarding answers feed user_profile for the recommendation engine.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Awe Field · App</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06060c; --bg-2:#0c0c14;
+  --surf:#10101a; --surf-2:#161622; --surf-3:#1a1a28;
+  --text:#f4f1ea; --text-2:#a8a59c; --text-3:#6a6760;
+  --border:#23232f; --border-soft:#1a1a26;
+  --arrival:#5a9eb5; --healing:#d4825e; --expansion:#9b6dc7;
+  --accent:#c9a878; --good:#7cbf7c; --warn:#e2a85a; --bad:#d96868;
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --sans:'Inter',-apple-system,system-ui,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--text);font:14px/1.5 var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh}
+body{
+  background-image:
+    radial-gradient(ellipse at top, rgba(155,109,199,.06), transparent 55%),
+    radial-gradient(ellipse at bottom, rgba(90,158,181,.04), transparent 60%);
+  background-attachment:fixed;transition:background 1.2s ease;
+}
+body[data-cat="arrival"]   {background-image:radial-gradient(ellipse at top, rgba(90,158,181,.18), transparent 70%)}
+body[data-cat="healing"]   {background-image:radial-gradient(ellipse at top, rgba(212,130,94,.16), transparent 70%)}
+body[data-cat="expansion"] {background-image:radial-gradient(ellipse at top, rgba(155,109,199,.18), transparent 70%)}
+
+.frame-wrap{display:flex;flex-direction:column;align-items:center;padding:24px 16px;min-height:100vh}
+.dev-label{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--text-3);margin-bottom:14px;text-align:center}
+.dev-label b{color:var(--accent)}
+
+.phone{
+  width:400px;height:840px;background:#0a0a12;
+  border:8px solid #16161e;border-radius:48px;
+  box-shadow:0 30px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.03) inset;
+  position:relative;overflow:hidden;
+}
+.notch{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:115px;height:30px;background:#000;border-radius:18px;z-index:5}
+.status-bar{
+  position:absolute;top:0;left:0;right:0;height:48px;padding:14px 28px 0;
+  display:flex;justify-content:space-between;align-items:center;
+  font-size:14px;font-weight:600;color:var(--text);z-index:4;
+}
+.status-bar .right{display:flex;gap:6px;align-items:center;font-size:13px}
+.bat{width:24px;height:11px;border:1px solid var(--text);border-radius:3px;position:relative;display:inline-block}
+.bat::before{content:"";position:absolute;right:-3px;top:2px;width:2px;height:5px;background:var(--text);border-radius:1px}
+.bat::after{content:"";position:absolute;left:1px;top:1px;width:17px;height:7px;background:var(--good);border-radius:1px}
+.screen-area{
+  position:absolute;inset:48px 0 0 0;overflow-y:auto;padding:14px 22px 80px;
+  scrollbar-width:none;
+}
+.screen-area::-webkit-scrollbar{display:none}
+
+.scr{display:none;animation:fade .5s ease}
+.scr.on{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+.top-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding-top:6px}
+.back{background:none;border:none;color:var(--text-2);font:inherit;font-size:14px;cursor:pointer;padding:0}
+.back:hover{color:var(--text)}
+.crumb{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--text-3)}
+.crumb b{color:var(--accent);font-weight:500}
+.right-icon{color:var(--text-3);font-size:16px;cursor:pointer}
+
+h1{font-family:var(--serif);font-weight:300;font-size:34px;line-height:1.1;letter-spacing:.005em;margin-bottom:10px}
+h1 em{font-style:italic;color:var(--text-2);font-weight:300}
+.lede{font-size:14px;color:var(--text-2);line-height:1.55;margin-bottom:24px}
+
+.btn{
+  width:100%;background:var(--accent);color:#1a1408;border:none;
+  padding:14px 16px;border-radius:8px;font:inherit;font-weight:500;
+  letter-spacing:.04em;cursor:pointer;font-size:14px;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.btn.ghost{background:transparent;color:var(--text-2);border:1px solid var(--border)}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn-row{display:flex;gap:8px}
+.btn-row .btn{flex:1}
+.btn-row .btn.fixed{flex:0 0 auto;width:auto;padding:14px 18px}
+
+.nav{
+  position:absolute;bottom:0;left:0;right:0;height:64px;
+  background:rgba(8,8,14,.85);backdrop-filter:blur(20px);
+  border-top:1px solid var(--border-soft);
+  display:flex;justify-content:space-around;align-items:center;padding-bottom:8px;
+}
+.nav .item{display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--text-3);font-size:9.5px;letter-spacing:.08em;cursor:pointer}
+.nav .item.on{color:var(--text)}
+.nav .icon{width:20px;height:20px;border:1.5px solid currentColor;border-radius:5px}
+.nav .icon.c{border-radius:50%}
+.nav .icon.r{border:none;width:20px;height:14px;background:linear-gradient(currentColor 1px,transparent 1px) 0 0/100% 4px}
+.nav .icon.h{border-radius:0 0 5px 5px;border-top-width:0}
+
+/* ─── ONBOARDING ─── */
+.onb-step{display:flex;flex-direction:column;height:calc(840px - 48px - 64px)}
+.onb-step .body{flex:1;padding-top:18px}
+.onb-step .progress-dots{display:flex;gap:6px;justify-content:center;margin-bottom:24px}
+.onb-step .dot{width:8px;height:8px;border-radius:50%;background:var(--surf-3);border:1px solid var(--border-soft)}
+.onb-step .dot.on{background:var(--accent);border-color:var(--accent)}
+
+.likert{
+  display:flex;justify-content:space-between;gap:5px;margin-top:18px;
+}
+.likert button{
+  flex:1;height:40px;background:var(--surf);border:1px solid var(--border-soft);
+  color:var(--text-2);border-radius:6px;font:inherit;font-size:13px;
+  cursor:pointer;font-variant-numeric:tabular-nums;
+}
+.likert button.on{background:var(--accent);color:#1a1408;border-color:var(--accent);font-weight:500}
+.likert-end{display:flex;justify-content:space-between;font-size:10px;color:var(--text-3);margin-top:8px;letter-spacing:.05em}
+
+.yn-row{display:flex;gap:10px;margin-top:18px}
+.yn-row button{
+  flex:1;padding:14px;background:var(--surf);border:1px solid var(--border-soft);
+  color:var(--text-2);border-radius:8px;font:inherit;font-size:14px;font-weight:500;cursor:pointer;
+}
+.yn-row button.on{background:var(--accent);color:#1a1408;border-color:var(--accent)}
+
+.q-h{font-family:var(--serif);font-weight:400;font-size:22px;line-height:1.2;margin-bottom:8px}
+.q-help{font-size:12.5px;color:var(--text-3);line-height:1.5;margin-bottom:8px}
+
+.cond-block{
+  margin-top:18px;padding:14px 16px;background:var(--surf);
+  border:1px solid var(--border-soft);border-radius:8px;
+}
+.cond-block .lbl{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);margin-bottom:8px}
+.cond-block input[type=text]{
+  width:100%;background:var(--bg-2);border:1px solid var(--border-soft);
+  color:var(--text);padding:11px 13px;border-radius:6px;font:inherit;
+}
+
+/* ─── MANIFESTO ─── */
+.manifesto{padding-top:30px;text-align:left}
+.manifesto .tier-tag{
+  display:inline-block;padding:4px 12px;border-radius:999px;
+  font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  background:rgba(201,168,120,.1);color:var(--accent);
+  border:1px solid rgba(201,168,120,.3);margin-bottom:18px;
+}
+.manifesto h2{font-family:var(--serif);font-weight:300;font-size:30px;line-height:1.15;margin-bottom:20px}
+.manifesto h2 em{font-style:italic;color:var(--text-2)}
+.manifesto p{color:var(--text-2);line-height:1.65;margin-bottom:14px;font-size:14px}
+.manifesto p strong{color:var(--text);font-weight:500}
+.manifesto .signoff{font-family:var(--serif);font-size:17px;color:var(--text);margin-top:24px;font-style:italic}
+.manifesto a.link{color:var(--accent);text-decoration:underline;cursor:pointer}
+
+/* ─── MODE / CATEGORY / DEPTH CARDS ─── */
+.opt-stack{display:flex;flex-direction:column;gap:10px;margin-bottom:24px}
+.opt-card{
+  background:var(--surf);border:1px solid var(--border-soft);
+  border-radius:10px;padding:18px 20px;cursor:pointer;transition:all .2s;
+}
+.opt-card:hover{border-color:var(--border)}
+.opt-card .t{font-family:var(--serif);font-size:22px;line-height:1.1;margin-bottom:4px}
+.opt-card .d{font-size:13px;color:var(--text-2);line-height:1.45}
+.opt-card .more{
+  font-size:11px;letter-spacing:.06em;color:var(--accent);
+  margin-top:8px;cursor:pointer;display:flex;align-items:center;gap:4px;
+}
+.opt-card .info-body{
+  display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--border-soft);
+  font-size:13px;color:var(--text-2);line-height:1.6;
+}
+.opt-card.expand .info-body{display:block;animation:fade .4s ease}
+.opt-card.expand .more::after{content:" ▴"}
+.opt-card .more::after{content:" ▾"}
+
+.opt-card[data-cat="arrival"]   .t::before{content:"";display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--arrival);margin-right:10px;vertical-align:middle}
+.opt-card[data-cat="healing"]   .t::before{content:"";display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--healing);margin-right:10px;vertical-align:middle}
+.opt-card[data-cat="expansion"] .t::before{content:"";display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--expansion);margin-right:10px;vertical-align:middle}
+
+.choose-btn{
+  margin-top:14px;background:var(--accent);color:#1a1408;border:none;
+  padding:10px 18px;border-radius:6px;font:inherit;font-weight:500;font-size:12.5px;cursor:pointer;
+}
+
+/* ─── HOME ─── */
+.wordmark{text-align:center;font-family:var(--serif);font-size:24px;letter-spacing:.08em;color:var(--text-2);margin:8px 0 18px}
+.heroes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:18px}
+.hero{display:flex;flex-direction:column;align-items:center;gap:6px}
+.ring{width:100px;height:100px;position:relative;display:flex;align-items:center;justify-content:center}
+.ring svg{position:absolute;inset:0}
+.ring .v{font-size:25px;font-weight:600;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.ring .v small{font-size:14px;font-weight:500;color:var(--text-2);margin-left:1px}
+.h-lbl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-3);text-align:center}
+.h-lbl b{color:var(--text-2);font-weight:500;display:block;font-size:10px;margin-bottom:1px}
+
+.cta-banner{
+  background:linear-gradient(180deg,#1a1626 0%,#13121b 100%);
+  border:1px solid var(--border);border-radius:14px;padding:22px;
+  position:relative;margin-bottom:14px;
+}
+.cta-banner::before{content:"";position:absolute;top:0;left:22px;right:22px;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent)}
+.cta-banner .lbl{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.cta-banner .lbl .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent)}
+.cta-banner h2{font-family:var(--serif);font-weight:400;font-size:24px;line-height:1.15;margin-bottom:10px}
+.cta-banner p{font-size:13px;line-height:1.55;color:var(--text-2);margin-bottom:14px}
+
+.section-h{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--text-3);margin:14px 0 8px;display:flex;justify-content:space-between;align-items:center}
+.section-h a{color:var(--accent);text-decoration:none}
+
+.mini{
+  background:var(--surf);border:1px solid var(--border-soft);
+  border-radius:8px;padding:11px 13px;margin-bottom:6px;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.mini .t{font-family:var(--serif);font-size:15.5px}
+.mini .m{font-size:10.5px;color:var(--text-3);letter-spacing:.06em;text-transform:uppercase;margin-top:2px}
+.mini .d{font-family:var(--mono);font-size:12px;color:var(--good);text-align:right}
+.mini .d .neg{color:var(--text-2);display:block;font-size:10.5px}
+
+/* ─── CHECK-IN ─── */
+.checkin-block{margin-bottom:22px}
+.checkin-block .q{font-family:var(--serif);font-size:19px;margin-bottom:12px;line-height:1.2}
+.slider-wrap{position:relative;height:42px;display:flex;align-items:center}
+input[type=range]{
+  -webkit-appearance:none;width:100%;height:4px;background:var(--surf-3);border-radius:2px;outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:22px;height:22px;background:var(--accent);
+  border-radius:50%;cursor:pointer;border:3px solid #1a1408;box-shadow:0 0 0 1px var(--accent);
+}
+input[type=range]::-moz-range-thumb{width:22px;height:22px;background:var(--accent);border-radius:50%;cursor:pointer;border:3px solid #1a1408}
+.scale-row{display:flex;justify-content:space-between;font-size:11px;color:var(--text-3);letter-spacing:.05em;margin-top:4px}
+.slider-val{font-family:var(--mono);font-size:13px;color:var(--accent);text-align:center;margin-top:6px;letter-spacing:.05em;font-variant-numeric:tabular-nums}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chip{
+  background:var(--surf);border:1px solid var(--border-soft);
+  color:var(--text-2);padding:7px 13px;border-radius:999px;font-size:12px;cursor:pointer;
+}
+.chip:hover{border-color:var(--border)}
+.chip.on{background:rgba(201,168,120,.12);color:var(--accent);border-color:var(--accent)}
+.text-input{
+  width:100%;background:var(--surf);border:1px solid var(--border-soft);
+  color:var(--text);padding:14px 16px;border-radius:8px;
+  font:inherit;font-size:14px;min-height:80px;resize:vertical;
+}
+.text-input::placeholder{color:var(--text-3);font-style:italic}
+
+.wearable-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 16px;background:var(--surf);border:1px solid var(--border-soft);
+  border-radius:8px;margin-top:18px;
+}
+.wearable-row .info{display:flex;align-items:center;gap:12px}
+.wearable-row .icon{width:32px;height:32px;border-radius:50%;background:var(--surf-3);display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:13px}
+.wearable-row .ttl{font-size:13px;font-weight:500}
+.wearable-row .sub{font-size:11px;color:var(--text-3);margin-top:1px}
+.wearable-row .status{font-size:11px;color:var(--good);font-family:var(--mono);letter-spacing:.05em}
+
+/* ─── RECOMMENDATION ─── */
+.match-card{
+  background:linear-gradient(180deg,#1a1626 0%,#13121b 100%);
+  border:1px solid var(--border);border-radius:14px;padding:24px;margin-bottom:14px;position:relative;
+}
+.match-card::before{content:"";position:absolute;top:0;left:24px;right:24px;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent)}
+.match-card .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+.match-card .lbl{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);display:flex;align-items:center;gap:8px}
+.match-card .lbl .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent)}
+.match-card .conf{font-family:var(--mono);font-size:10.5px;color:var(--text-3)}
+.match-card h2{font-family:var(--serif);font-weight:400;font-size:30px;line-height:1.05;margin-bottom:4px}
+.match-card .meta{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-2);margin-bottom:18px}
+.match-card .meta b{color:var(--healing)}
+.match-card .narr{font-size:14px;line-height:1.65;color:var(--text);margin-bottom:18px}
+.match-card .narr .num{color:var(--accent);font-family:var(--mono);font-weight:500}
+.match-card .narr b{font-weight:600}
+.predicted{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:18px}
+.pred{background:rgba(124,191,124,.05);border:1px solid rgba(124,191,124,.18);border-radius:7px;padding:10px;text-align:center}
+.pred .lbl{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);margin-bottom:3px}
+.pred .v{font-family:var(--mono);font-size:14px;font-weight:500;color:var(--good)}
+
+/* ─── PREP / COUNTDOWN ─── */
+.prep-art{width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(201,168,120,.2),rgba(201,168,120,.02));margin:30px auto 24px;animation:breathe 7s ease-in-out infinite}
+@keyframes breathe{0%,100%{transform:scale(.92);opacity:.7}50%{transform:scale(1.08);opacity:1}}
+.prep-list{list-style:none;margin-bottom:20px}
+.prep-list li{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border-soft);cursor:pointer;color:var(--text-2);font-size:14px}
+.prep-list li .box{width:18px;height:18px;border:1px solid var(--border);border-radius:4px;flex-shrink:0;position:relative}
+.prep-list li.done{color:var(--text)}
+.prep-list li.done .box{background:var(--accent);border-color:var(--accent)}
+.prep-list li.done .box::after{content:"✓";position:absolute;top:-2px;left:3px;color:#1a1408;font-size:14px;font-weight:600}
+.help{font-size:11px;color:var(--text-3);line-height:1.5;margin-top:18px}
+
+.countdown-num{font-family:var(--serif);font-size:120px;color:var(--accent);text-align:center;line-height:1;margin-top:60px}
+.countdown-lbl{text-align:center;color:var(--text-3);font-size:11px;letter-spacing:.18em;text-transform:uppercase;margin-top:18px}
+
+/* ─── PLAYER · HYPNOTIC VISUAL ─── */
+.player-wrap{position:relative;width:280px;height:280px;margin:20px auto 30px}
+.player-svg{position:absolute;inset:0;width:100%;height:100%}
+.player-title{text-align:center;font-family:var(--serif);font-size:26px;margin-bottom:4px}
+.player-meta{text-align:center;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--text-2);margin-bottom:24px}
+.player-stats{
+  display:grid;grid-template-columns:1fr 1px 1fr;gap:0;
+  background:var(--surf);border:1px solid var(--border-soft);
+  border-radius:10px;padding:14px;margin-bottom:18px;
+}
+.player-stats .stat{text-align:center}
+.player-stats .div{background:var(--border-soft)}
+.player-stats .lbl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-3);margin-bottom:4px}
+.player-stats .v{font-family:var(--mono);font-size:22px;font-weight:500;color:var(--text);font-variant-numeric:tabular-nums}
+.player-stats .v.green{color:var(--good)}
+.player-stats .delta{font-family:var(--mono);font-size:10px;color:var(--good);margin-top:3px}
+.progress{width:100%;height:2px;background:var(--surf-3);border-radius:2px;overflow:hidden;margin:22px 0 28px}
+.progress .bar{height:100%;background:var(--accent);width:0;transition:width 1s linear}
+.player-finish{display:flex;justify-content:center}
+.finish-btn{
+  background:var(--surf);border:1px solid var(--border);color:var(--text-2);
+  padding:12px 28px;border-radius:999px;font:inherit;font-size:12px;
+  letter-spacing:.1em;text-transform:uppercase;cursor:pointer;
+}
+.finish-btn:hover{color:var(--text)}
+
+/* ─── REFLECTION (6 phenomenology questions) ─── */
+.refl-step{padding:8px 0}
+.refl-step .qnum{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-3);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.refl-step .qnum .pip{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.refl-step h3{font-family:var(--serif);font-weight:400;font-size:24px;line-height:1.2;margin-bottom:6px}
+.refl-step .desc{color:var(--text-3);font-size:12.5px;margin-bottom:14px;line-height:1.5}
+.refl-step .intensity{margin-bottom:14px}
+.refl-step .intensity-lbl{font-size:11px;color:var(--text-3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px}
+.refl-step .dots{display:flex;gap:8px;justify-content:space-between}
+.refl-step .dots button{
+  flex:1;height:36px;background:var(--surf);border:1px solid var(--border-soft);
+  color:var(--text-2);border-radius:5px;font:inherit;font-size:12px;cursor:pointer;
+}
+.refl-step .dots button.on{background:var(--accent);color:#1a1408;border-color:var(--accent);font-weight:500}
+.refl-step .dots-end{display:flex;justify-content:space-between;font-size:10px;color:var(--text-3);margin-top:5px;letter-spacing:.05em}
+
+/* ─── STATE DELTA / 6-axis hexagon ─── */
+.session-title{text-align:center;font-family:var(--serif);font-size:26px;margin-bottom:4px}
+.session-meta{text-align:center;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--text-3);margin-bottom:14px}
+.session-meta .cat{color:var(--healing)}
+
+.radar-card{background:var(--surf);border:1px solid var(--border-soft);border-radius:14px;padding:16px 8px 10px;margin-bottom:14px}
+.radar-card .h{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--text-3);text-align:center;margin-bottom:8px}
+.radar-card .legend{font-size:10px;color:var(--text-2);text-align:center;margin-top:6px;letter-spacing:.04em}
+.radar-card .dot{display:inline-block;width:8px;height:2px;vertical-align:middle;margin-right:5px}
+.radar-card .dot.b{background:#5a6678}
+.radar-card .dot.a{background:var(--healing)}
+
+.dimension-list{
+  background:var(--surf);border:1px solid var(--border-soft);
+  border-radius:10px;padding:14px;margin-bottom:14px;
+}
+.dim-row{display:grid;grid-template-columns:18px 1fr auto;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--border-soft);font-size:12.5px}
+.dim-row:last-child{border-bottom:none}
+.dim-row .pip{width:10px;height:10px;border-radius:2px}
+.dim-row .l{color:var(--text-2)}
+.dim-row .l b{color:var(--text);font-weight:500}
+.dim-row .v{font-family:var(--mono);font-size:13px;color:var(--good);font-weight:500}
+
+/* HRV CARD on delta */
+.hrv-card{background:var(--surf);border:1px solid var(--border-soft);border-radius:12px;padding:14px;margin-bottom:14px}
+.hrv-head{display:flex;justify-content:space-between;align-items:end;margin-bottom:6px}
+.hrv-head .l{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-3)}
+.hrv-head .v{font-family:var(--mono);font-size:14px}
+.hrv-head .v b{color:var(--good)}
+.para-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px}
+.para-row .p{text-align:center;padding:8px;background:var(--surf-2);border-radius:6px}
+.para-row .p .l{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);margin-bottom:3px}
+.para-row .p .v{font-family:var(--mono);font-size:14px;color:var(--good);font-weight:500}
+
+/* ARTIST CARD */
+.artist-card{
+  background:var(--surf);border:1px solid var(--border-soft);
+  border-radius:12px;padding:16px;margin-bottom:14px;
+  display:flex;gap:14px;align-items:center;cursor:pointer;
+}
+.artist-card:hover{border-color:var(--border)}
+.artist-card .av{
+  width:56px;height:56px;border-radius:50%;flex-shrink:0;
+  background:linear-gradient(135deg,var(--healing),var(--expansion));
+}
+.artist-card .body{flex:1}
+.artist-card .lbl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-3);margin-bottom:3px}
+.artist-card .name{font-family:var(--serif);font-size:20px;line-height:1.1}
+.artist-card .sub{font-size:11.5px;color:var(--text-2);margin-top:4px;line-height:1.4}
+.artist-card .arrow{color:var(--text-3);font-size:18px}
+.artist-card .ai-note{
+  font-size:10px;color:var(--accent);letter-spacing:.08em;text-transform:uppercase;
+  margin-top:6px;
+}
+
+/* MY FIELD */
+.field-stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:18px}
+.f-stat{background:var(--surf);border:1px solid var(--border-soft);border-radius:8px;padding:12px 14px}
+.f-stat .l{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);margin-bottom:6px}
+.f-stat .v{font-size:22px;font-weight:600;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.f-stat .d{font-size:10.5px;color:var(--good);margin-top:3px;font-family:var(--mono)}
+
+.pattern-card{
+  background:rgba(155,109,199,.06);border:1px solid rgba(155,109,199,.25);
+  border-radius:10px;padding:14px 16px;margin-bottom:14px;font-size:13px;line-height:1.5;
+}
+.pattern-card .h{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--expansion);margin-bottom:6px;display:flex;align-items:center;gap:8px}
+.pattern-card .h .dot{width:5px;height:5px;border-radius:50%;background:var(--expansion);box-shadow:0 0 8px var(--expansion)}
+.pattern-card b{font-weight:600}
+.pattern-card .num{color:var(--expansion);font-family:var(--mono);font-weight:500}
+.field-row{background:var(--surf);border:1px solid var(--border-soft);border-radius:8px;padding:12px 14px;margin-bottom:6px;display:grid;grid-template-columns:48px 1fr auto;gap:10px;align-items:center}
+.field-row .date{font-family:var(--mono);font-size:11px;color:var(--text-3)}
+.field-row .body .t{font-family:var(--serif);font-size:15px;line-height:1.1}
+.field-row .body .m{font-size:10px;color:var(--text-3);letter-spacing:.05em;text-transform:uppercase;margin-top:2px}
+.field-row .right{font-family:var(--mono);font-size:11px;color:var(--good);text-align:right}
+.field-row .right .neg{color:var(--text-2);display:block}
+</style>
+</head>
+<body data-cat="healing">
+<div class="frame-wrap">
+  <div class="dev-label">AWE FIELD · LISTENER APP · <b>v3 prototype</b></div>
+
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="status-bar">
+      <span id="clock">09:32</span>
+      <span class="right"><span>📶</span><span class="bat"></span><span style="font-size:11px;color:var(--text-2)">85%</span></span>
+    </div>
+    <div class="screen-area">
+
+      <!-- ════════════════════ ONBOARDING ════════════════════ -->
+      <section class="scr on" id="s-onb1">
+        <div class="onb-step">
+          <div class="progress-dots"><div class="dot on"></div><div class="dot"></div><div class="dot"></div></div>
+          <div class="body">
+            <div class="crumb" style="margin-bottom:24px"><b>welcome</b></div>
+            <h1>Before we begin.</h1>
+            <p class="lede">Three short questions. Your answers shape what the engine recommends and how it speaks to you. Nothing is shared without your consent.</p>
+
+            <div style="margin-top:18px">
+              <div class="q-h">What is your level of experience with intentional listening?</div>
+              <div class="q-help">Sound baths, deep listening sessions, sound meditation, etc.</div>
+              <div class="likert" id="lk-exp">
+                <button onclick="setLikert(this,'exp',0)">0</button>
+                <button onclick="setLikert(this,'exp',1)">1</button>
+                <button onclick="setLikert(this,'exp',2)">2</button>
+                <button onclick="setLikert(this,'exp',3)">3</button>
+                <button onclick="setLikert(this,'exp',4)">4</button>
+                <button onclick="setLikert(this,'exp',5)">5</button>
+                <button onclick="setLikert(this,'exp',6)">6</button>
+                <button onclick="setLikert(this,'exp',7)">7</button>
+                <button onclick="setLikert(this,'exp',8)">8</button>
+                <button onclick="setLikert(this,'exp',9)">9</button>
+                <button onclick="setLikert(this,'exp',10)">10</button>
+              </div>
+              <div class="likert-end"><span>never</span><span>practitioner</span></div>
+            </div>
+          </div>
+          <button class="btn" onclick="go('onb2')">Continue</button>
+        </div>
+      </section>
+
+      <section class="scr" id="s-onb2">
+        <div class="onb-step">
+          <div class="progress-dots"><div class="dot on"></div><div class="dot on"></div><div class="dot"></div></div>
+          <div class="body">
+            <button class="back" onclick="go('onb1')" style="margin-bottom:18px">‹ Back</button>
+            <h1>Have you ever had a psychedelic experience?</h1>
+            <p class="lede">This includes ceremonial, recreational, therapeutic, or accidental. We ask so the engine knows how to calibrate depth.</p>
+            <div class="yn-row" id="yn-psy">
+              <button onclick="setYN(this,'psy','no')">No</button>
+              <button onclick="setYN(this,'psy','yes')">Yes</button>
+            </div>
+
+            <div id="psy-detail" style="display:none">
+              <div class="cond-block" style="margin-top:24px">
+                <div class="lbl">How positive was your experience overall?</div>
+                <div class="likert" id="lk-psy">
+                  <button onclick="setLikert(this,'psyq',0)">0</button>
+                  <button onclick="setLikert(this,'psyq',1)">1</button>
+                  <button onclick="setLikert(this,'psyq',2)">2</button>
+                  <button onclick="setLikert(this,'psyq',3)">3</button>
+                  <button onclick="setLikert(this,'psyq',4)">4</button>
+                  <button onclick="setLikert(this,'psyq',5)">5</button>
+                  <button onclick="setLikert(this,'psyq',6)">6</button>
+                  <button onclick="setLikert(this,'psyq',7)">7</button>
+                  <button onclick="setLikert(this,'psyq',8)">8</button>
+                  <button onclick="setLikert(this,'psyq',9)">9</button>
+                  <button onclick="setLikert(this,'psyq',10)">10</button>
+                </div>
+                <div class="likert-end"><span>very difficult</span><span>profoundly positive</span></div>
+              </div>
+            </div>
+          </div>
+          <button class="btn" onclick="go('onb3')">Continue</button>
+        </div>
+      </section>
+
+      <section class="scr" id="s-onb3">
+        <div class="onb-step">
+          <div class="progress-dots"><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div></div>
+          <div class="body">
+            <button class="back" onclick="go('onb2')" style="margin-bottom:18px">‹ Back</button>
+            <h1>Have you been diagnosed with a pathology or condition?</h1>
+            <p class="lede">For example PTSD, OCD, depression, anxiety, fibromyalgia. The engine adjusts safety filters and we will never share this.</p>
+            <div class="yn-row" id="yn-path">
+              <button onclick="setYN(this,'path','no')">No</button>
+              <button onclick="setYN(this,'path','yes')">Yes</button>
+            </div>
+
+            <div id="path-detail" style="display:none">
+              <div class="cond-block" style="margin-top:18px">
+                <div class="lbl">Which one? · optional</div>
+                <input type="text" placeholder="you can type or leave blank">
+              </div>
+            </div>
+
+            <p class="help" style="margin-top:24px">By continuing you accept our <a style="color:var(--accent)">terms</a> and <a style="color:var(--accent)">privacy policy</a>. Awe Field is for self-exploration and not a replacement for medical or psychological care.</p>
+          </div>
+          <button class="btn" onclick="go('manifesto')">Continue</button>
+        </div>
+      </section>
+
+      <!-- ════════════════════ MANIFESTO ════════════════════ -->
+      <section class="scr" id="s-manifesto">
+        <div class="onb-step">
+          <div class="body manifesto">
+            <span class="tier-tag" id="tier-tag">Welcome</span>
+            <h2 id="manifesto-h">Awe Field is not a wellness app. <em>It is a protocol.</em></h2>
+            <p id="manifesto-p1">A protocol you can learn to change or enhance the relationship you have with yourself and the world you inhabit.</p>
+            <p id="manifesto-p2">With this protocol you can gain insights about your life, build resilience, become more aware of your internal needs, process emotions — or go further, into exploration with the bigger consciousness.</p>
+            <p id="manifesto-p3">You can read more on our website for tutorials and the science behind Awe Field. <a class="link">awefield.io →</a></p>
+            <div class="signoff">Enter when you're ready.</div>
+          </div>
+          <button class="btn" onclick="go('mode')">Begin</button>
+        </div>
+      </section>
+
+      <!-- ════════════════════ MODE ════════════════════ -->
+      <section class="scr" id="s-mode">
+        <div class="top-row">
+          <span></span>
+          <div class="wordmark" style="margin:0">AWE FIELD</div>
+          <span class="right-icon">⚙</span>
+        </div>
+        <p class="lede" style="text-align:center;margin-top:30px;margin-bottom:30px">Choose how you want to enter the field today.</p>
+
+        <div class="opt-stack">
+          <div class="opt-card" onclick="go('category')">
+            <div class="t">Solo Journey</div>
+            <div class="d">A private session for one. Begin in your own time, with your own intention.</div>
+          </div>
+          <div class="opt-card" onclick="alert('Group Session: shared link, synced playback, post-session reflection room. See SPEC.md for full flow.')">
+            <div class="t">Group Session</div>
+            <div class="d">Invite friends into the same journey, synchronised in time, with shared reflection.</div>
+          </div>
+          <div class="opt-card" onclick="alert('Live Session: enter a join code or scan a QR for a hosted gathering.')">
+            <div class="t">Live Session</div>
+            <div class="d">Enter a hosted gathering with a join code or QR.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════════════════════ CATEGORY ════════════════════ -->
+      <section class="scr" id="s-category">
+        <div class="top-row">
+          <button class="back" onclick="go('mode')">‹ Back</button>
+          <div class="crumb">choose category</div>
+          <span></span>
+        </div>
+        <h1>What do you need today?</h1>
+        <p class="lede">Each category opens onto three depths. Tap <i>more</i> to read what each holds.</p>
+
+        <div class="opt-stack">
+          <div class="opt-card" data-cat="arrival">
+            <div class="t">Arrival</div>
+            <div class="d">For grounding, softness, and nervous system regulation.</div>
+            <div class="more" onclick="event.stopPropagation();this.parentElement.classList.toggle('expand')">more</div>
+            <div class="info-body">
+              Arrival is the doorway. Sessions in this category bring you into the body, slow the breath, and signal to the nervous system that it is safe to settle. Use this when you arrive home tense, before sleep, or before any deeper work. The acoustic profile is typically low frequency, sparse, with long durations between events.
+              <button class="choose-btn" onclick="setCategory('arrival');go('depth')">Choose Arrival →</button>
+            </div>
+          </div>
+          <div class="opt-card" data-cat="healing">
+            <div class="t">Healing</div>
+            <div class="d">For emotional processing, release, and inner repair.</div>
+            <div class="more" onclick="event.stopPropagation();this.parentElement.classList.toggle('expand')">more</div>
+            <div class="info-body">
+              Healing sessions hold space for what has been waiting. They invite the body to soften and the heart to open. Tears are common. Many sessions in this category feature human voice, breath, or instruments that resemble the human voice. Use this when you sense something that needs to move through you.
+              <button class="choose-btn" onclick="setCategory('healing');go('depth')">Choose Healing →</button>
+            </div>
+          </div>
+          <div class="opt-card" data-cat="expansion">
+            <div class="t">Expansion</div>
+            <div class="d">For clarity, creativity, exploration, and altered awareness.</div>
+            <div class="more" onclick="event.stopPropagation();this.parentElement.classList.toggle('expand')">more</div>
+            <div class="info-body">
+              Expansion sessions widen the field of attention beyond the immediate self. Visions, fractal imagery, archetypes, and shifts in time perception are common. The acoustic profile leans toward spatial, harmonically rich, and dynamically wide. Use these when you have time, energy, and a settled mind.
+              <button class="choose-btn" onclick="setCategory('expansion');go('depth')">Choose Expansion →</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════════════════════ DEPTH ════════════════════ -->
+      <section class="scr" id="s-depth">
+        <div class="top-row">
+          <button class="back" onclick="go('category')">‹ Back</button>
+          <div class="crumb"><b id="depth-cat-crumb">healing</b> · choose depth</div>
+          <span></span>
+        </div>
+        <h1>How deep do you want to go?</h1>
+        <p class="lede">The depth defines the duration, the acoustic intensity, and how far the session opens.</p>
+
+        <div class="opt-stack">
+          <div class="opt-card" onclick="setDepth('gentle');go('checkin')">
+            <div class="t">Gentle</div>
+            <div class="d">A soft entry — 10 to 18 minutes. Recommended for first-time listeners.</div>
+          </div>
+          <div class="opt-card" onclick="setDepth('deep');go('checkin')">
+            <div class="t">Deep</div>
+            <div class="d">A longer descent — 20 to 35 minutes. Headphones strongly recommended.</div>
+          </div>
+          <div class="opt-card" onclick="setDepth('immersive');go('checkin')">
+            <div class="t">Immersive</div>
+            <div class="d">Full-length, full-field — 40 to 60 minutes. Best in low light without interruption.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════════════════════ CHECK-IN ════════════════════ -->
+      <section class="scr" id="s-checkin">
+        <div class="top-row">
+          <button class="back" onclick="go('depth')">‹ Back</button>
+          <div class="crumb">state check-in</div>
+          <span></span>
+        </div>
+
+        <h1>Where are you, <em>right now?</em></h1>
+        <p class="lede">A few seconds. Everything you write is private to you.</p>
+
+        <div class="checkin-block">
+          <div class="q">Body</div>
+          <input type="range" min="1" max="10" value="4" id="sl-body" oninput="updateSlider(this,'val-body','body')">
+          <div class="scale-row"><span>depleted</span><span>neutral</span><span>radiant</span></div>
+          <div class="slider-val" id="val-body">4 — heavy chest, restless shoulders</div>
+        </div>
+
+        <div class="checkin-block">
+          <div class="q">Mood</div>
+          <input type="range" min="1" max="10" value="5" id="sl-mood" oninput="updateSlider(this,'val-mood','mood')">
+          <div class="scale-row"><span>flat</span><span>steady</span><span>bright</span></div>
+          <div class="slider-val" id="val-mood">5 — somewhere in between</div>
+        </div>
+
+        <div class="checkin-block">
+          <div class="q">Energy</div>
+          <input type="range" min="1" max="10" value="3" id="sl-energy" oninput="updateSlider(this,'val-energy','energy')">
+          <div class="scale-row"><span>depleted</span><span>level</span><span>activated</span></div>
+          <div class="slider-val" id="val-energy">3 — low but wired</div>
+        </div>
+
+        <div class="checkin-block">
+          <div class="q">Is there anything bothering you right now?</div>
+          <textarea class="text-input" placeholder="optional — name it if it helps">A tense conversation with my mother this afternoon is still echoing.</textarea>
+        </div>
+
+        <div class="checkin-block">
+          <div class="q">Where would you like to be by the end?</div>
+          <div class="chips">
+            <span class="chip on" onclick="toggleChip(this)">grounded</span>
+            <span class="chip on" onclick="toggleChip(this)">soft</span>
+            <span class="chip" onclick="toggleChip(this)">clear</span>
+            <span class="chip" onclick="toggleChip(this)">awake</span>
+            <span class="chip" onclick="toggleChip(this)">released</span>
+            <span class="chip" onclick="toggleChip(this)">expanded</span>
+            <span class="chip" onclick="toggleChip(this)">held</span>
+            <span class="chip" onclick="toggleChip(this)">empty</span>
+          </div>
+          <textarea class="text-input" style="margin-top:12px" placeholder="or write your own intention…">I want the conversation to settle in my body rather than keep replaying.</textarea>
+        </div>
+
+        <div class="wearable-row">
+          <div class="info">
+            <div class="icon">♡</div>
+            <div>
+              <div class="ttl">Polar H10 · connected</div>
+              <div class="sub">Live HRV will be recorded during the journey</div>
+            </div>
+          </div>
+          <div class="status">●  live</div>
+        </div>
+
+        <div style="margin-top:24px">
+          <button class="btn" onclick="go('recommend')">Get my recommendation →</button>
+        </div>
+      </section>
+
+      <!-- ════════════════════ RECOMMENDATION ════════════════════ -->
+      <section class="scr" id="s-recommend">
+        <div class="top-row">
+          <button class="back" onclick="go('checkin')">‹ Back</button>
+          <div class="crumb">awe field recommendation</div>
+          <span></span>
+        </div>
+
+        <h1>Awe Field <em>recommends.</em></h1>
+        <p class="lede">The engine matched your state against your history and 8,400 anonymised sessions.</p>
+
+        <div class="match-card">
+          <div class="top">
+            <div class="lbl"><span class="dot"></span>Recommended for you</div>
+            <div class="conf">match · 0.86</div>
+          </div>
+          <h2>Threshold I</h2>
+          <div class="meta">Aoife Wren · <b>Healing · Deep · 25:00</b> · voice-rich</div>
+
+          <div class="narr">
+            Your evening arousal sits at <span class="num">1.8</span> (baseline <span class="num">0.9</span>), HRV is <span class="num">16ms below</span> your baseline, and your intention maps to <b>grounded · soft</b>. Three of your last four <b>Healing · Deep</b> sessions on Tuesday evenings produced arousal drops of <span class="num">−1.0 to −1.4</span>, and your strongest shifts have been on voice-rich tracks. Threshold I matches both criteria.
+          </div>
+
+          <div class="predicted">
+            <div class="pred"><div class="lbl">arousal</div><div class="v">−1.2</div></div>
+            <div class="pred"><div class="lbl">HRV</div><div class="v">+13 ms</div></div>
+            <div class="pred"><div class="lbl">depth</div><div class="v">3.6 / 5</div></div>
+          </div>
+
+          <div class="btn-row">
+            <button class="btn" onclick="go('prep')">Accept →</button>
+            <button class="btn ghost fixed" onclick="findAnother()">Find another</button>
+          </div>
+        </div>
+
+        <p class="help" style="text-align:center">Choosing <i>Find another</i> teaches the engine. Your feedback shapes future matches.</p>
+      </section>
+
+      <!-- ════════════════════ PREP ════════════════════ -->
+      <section class="scr" id="s-prep">
+        <div class="top-row">
+          <button class="back" onclick="go('recommend')">‹ Back</button>
+          <div class="crumb">prepare the space</div>
+          <span></span>
+        </div>
+
+        <h1>Settle the space.</h1>
+        <p class="lede">A few small things. The journey opens when you're ready.</p>
+
+        <div class="prep-art"></div>
+
+        <ul class="prep-list" id="prep-list">
+          <li onclick="this.classList.toggle('done');checkPrep()"><span class="box"></span>Headphones or external speakers</li>
+          <li onclick="this.classList.toggle('done');checkPrep()"><span class="box"></span>Silence notifications</li>
+          <li onclick="this.classList.toggle('done');checkPrep()"><span class="box"></span>Lie down or sit comfortably</li>
+          <li onclick="this.classList.toggle('done');checkPrep()"><span class="box"></span>Blanket or eye mask if available</li>
+        </ul>
+
+        <div class="wearable-row">
+          <div class="info">
+            <div class="icon">♡</div>
+            <div>
+              <div class="ttl">Polar H10 · 64 bpm</div>
+              <div class="sub">HRV streaming · pre-session baseline captured</div>
+            </div>
+          </div>
+          <div class="status">●  live</div>
+        </div>
+
+        <div style="margin-top:24px">
+          <button class="btn" id="begin-btn" disabled onclick="go('countdown')">Begin journey</button>
+        </div>
+
+        <p class="help">For self-exploration and deep listening. Not medical treatment. Don't use while driving or operating machinery. Open your eyes and feel your feet if you feel overwhelmed at any time.</p>
+      </section>
+
+      <!-- ════════════════════ COUNTDOWN ════════════════════ -->
+      <section class="scr" id="s-countdown">
+        <div class="top-row"><span></span><div class="crumb">settle in</div><span></span></div>
+        <div class="countdown-num" id="cd-num">10</div>
+        <div class="countdown-lbl">breathe</div>
+      </section>
+
+      <!-- ════════════════════ PLAYER · HYPNOTIC VISUAL ════════════════════ -->
+      <section class="scr" id="s-player">
+        <div class="top-row"><span></span><div class="crumb">in journey</div><span></span></div>
+
+        <div class="player-title">Threshold I</div>
+        <div class="player-meta">Aoife Wren · Healing · Deep</div>
+
+        <!-- hypnotic breathing visual -->
+        <div class="player-wrap">
+          <svg class="player-svg" viewBox="0 0 280 280">
+            <defs>
+              <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#d4825e" stop-opacity=".7"/>
+                <stop offset="40%" stop-color="#d4825e" stop-opacity=".15"/>
+                <stop offset="100%" stop-color="#d4825e" stop-opacity="0"/>
+              </radialGradient>
+              <radialGradient id="core" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#f4f1ea" stop-opacity=".95"/>
+                <stop offset="40%" stop-color="#c9a878" stop-opacity=".5"/>
+                <stop offset="100%" stop-color="#c9a878" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <!-- outer halo: scales with HRV -->
+            <circle id="halo-c" cx="140" cy="140" r="120" fill="url(#halo)" opacity=".7"/>
+            <!-- middle rings -->
+            <circle id="ring-3" cx="140" cy="140" r="100" stroke="rgba(212,130,94,.3)" stroke-width="1" fill="none"/>
+            <circle id="ring-2" cx="140" cy="140" r="78" stroke="rgba(212,130,94,.45)" stroke-width="1" fill="none"/>
+            <circle id="ring-1" cx="140" cy="140" r="56" stroke="rgba(212,130,94,.6)" stroke-width="1" fill="none"/>
+            <!-- core breath -->
+            <circle id="core-c" cx="140" cy="140" r="38" fill="url(#core)"/>
+          </svg>
+        </div>
+
+        <div class="player-stats">
+          <div class="stat">
+            <div class="lbl">YOUR HEART · BPM</div>
+            <div class="v" id="live-bpm">62</div>
+            <div class="delta" id="live-bpm-delta">−2 from start</div>
+          </div>
+          <div class="div"></div>
+          <div class="stat">
+            <div class="lbl">HRV · ms</div>
+            <div class="v green" id="live-hrv">58</div>
+            <div class="delta" id="live-hrv-delta">+4 from start</div>
+          </div>
+        </div>
+
+        <div class="player-stats" style="grid-template-columns:1fr 1px 1fr;margin-bottom:14px">
+          <div class="stat">
+            <div class="lbl">MUSIC TEMPO · BPM</div>
+            <div class="v" style="color:var(--healing)">52</div>
+            <div class="delta" style="color:var(--text-3)">slow drone · breath</div>
+          </div>
+          <div class="div"></div>
+          <div class="stat">
+            <div class="lbl">PARASYMPATHETIC</div>
+            <div class="v green" id="live-para">62%</div>
+            <div class="delta" id="live-para-delta">↑ from 41%</div>
+          </div>
+        </div>
+
+        <div class="progress"><div class="bar" id="play-bar"></div></div>
+
+        <div class="player-finish">
+          <button class="finish-btn" onclick="finishJourney()">Finish session</button>
+        </div>
+      </section>
+
+      <!-- ════════════════════ REFLECTION (6 questions) ════════════════════ -->
+      <section class="scr" id="s-reflection">
+        <div class="top-row">
+          <span></span>
+          <div class="crumb">reflection · <span id="refl-prog">1 of 6</span></div>
+          <span></span>
+        </div>
+
+        <p style="text-align:center;font-family:var(--serif);font-size:22px;margin-bottom:6px">Threshold I</p>
+        <p style="text-align:center;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--text-3);margin-bottom:24px">Session complete · 25:00</p>
+
+        <!-- 6 phenomenological dimensions, one at a time -->
+        <div class="refl-step" data-step="1">
+          <div class="qnum"><span class="pip"></span> Dimension 1 of 6 · SOMATIC</div>
+          <h3>What happened in your body?</h3>
+          <div class="desc">Body activation, tingling, warmth, kinetic sensations, dissolution of boundaries, out-of-body experiences.</div>
+          <div class="intensity">
+            <div class="intensity-lbl">Intensity</div>
+            <div class="dots" data-dim="somatic"><button onclick="setRef(this)">0</button><button onclick="setRef(this)">1</button><button onclick="setRef(this)">2</button><button onclick="setRef(this)">3</button><button onclick="setRef(this)">4</button><button onclick="setRef(this)">5</button></div>
+            <div class="dots-end"><span>none</span><span>profound</span></div>
+          </div>
+          <textarea class="text-input" placeholder="describe what you felt"></textarea>
+        </div>
+
+        <div class="refl-step" data-step="2" style="display:none">
+          <div class="qnum"><span class="pip"></span> Dimension 2 of 6 · COGNITIVE</div>
+          <h3>What became clear?</h3>
+          <div class="desc">Insights, clarity, mental quiet, problems dissolving, new understanding of a situation.</div>
+          <div class="intensity">
+            <div class="intensity-lbl">Intensity</div>
+            <div class="dots" data-dim="cognitive"><button onclick="setRef(this)">0</button><button onclick="setRef(this)">1</button><button onclick="setRef(this)">2</button><button onclick="setRef(this)">3</button><button onclick="setRef(this)">4</button><button onclick="setRef(this)">5</button></div>
+            <div class="dots-end"><span>none</span><span>profound</span></div>
+          </div>
+          <textarea class="text-input" placeholder="any insight you want to keep"></textarea>
+        </div>
+
+        <div class="refl-step" data-step="3" style="display:none">
+          <div class="qnum"><span class="pip"></span> Dimension 3 of 6 · VISUAL</div>
+          <h3>What did you see?</h3>
+          <div class="desc">Visions, fractals, colours, geometric patterns, landscapes, faces, light behind closed eyes.</div>
+          <div class="intensity">
+            <div class="intensity-lbl">Intensity</div>
+            <div class="dots" data-dim="visual"><button onclick="setRef(this)">0</button><button onclick="setRef(this)">1</button><button onclick="setRef(this)">2</button><button onclick="setRef(this)">3</button><button onclick="setRef(this)">4</button><button onclick="setRef(this)">5</button></div>
+            <div class="dots-end"><span>none</span><span>profound</span></div>
+          </div>
+          <textarea class="text-input" placeholder="describe the imagery"></textarea>
+        </div>
+
+        <div class="refl-step" data-step="4" style="display:none">
+          <div class="qnum"><span class="pip"></span> Dimension 4 of 6 · METAPHORIC</div>
+          <h3>What spoke through symbol?</h3>
+          <div class="desc">Archetypes, presences, animals, mythological figures, recurring icons, symbolic communication.</div>
+          <div class="intensity">
+            <div class="intensity-lbl">Intensity</div>
+            <div class="dots" data-dim="metaphoric"><button onclick="setRef(this)">0</button><button onclick="setRef(this)">1</button><button onclick="setRef(this)">2</button><button onclick="setRef(this)">3</button><button onclick="setRef(this)">4</button><button onclick="setRef(this)">5</button></div>
+            <div class="dots-end"><span>none</span><span>profound</span></div>
+          </div>
+          <textarea class="text-input" placeholder="what figures, symbols, or messages"></textarea>
+        </div>
+
+        <div class="refl-step" data-step="5" style="display:none">
+          <div class="qnum"><span class="pip"></span> Dimension 5 of 6 · MEMORIES</div>
+          <h3>What returned from memory?</h3>
+          <div class="desc">Past events, childhood, recent moments, ancestral memory, recovered details.</div>
+          <div class="intensity">
+            <div class="intensity-lbl">Intensity</div>
+            <div class="dots" data-dim="memories"><button onclick="setRef(this)">0</button><button onclick="setRef(this)">1</button><button onclick="setRef(this)">2</button><button onclick="setRef(this)">3</button><button onclick="setRef(this)">4</button><button onclick="setRef(this)">5</button></div>
+            <div class="dots-end"><span>none</span><span>profound</span></div>
+          </div>
+          <textarea class="text-input" placeholder="what surfaced"></textarea>
+        </div>
+
+        <div class="refl-step" data-step="6" style="display:none">
+          <div class="qnum"><span class="pip"></span> Dimension 6 of 6 · EMOTIONAL</div>
+          <h3>What did you feel?</h3>
+          <div class="desc">Emotions that moved through — grief, awe, tenderness, joy, fear, gratitude — and how they shifted.</div>
+          <div class="intensity">
+            <div class="intensity-lbl">Intensity</div>
+            <div class="dots" data-dim="emotional"><button onclick="setRef(this)">0</button><button onclick="setRef(this)">1</button><button onclick="setRef(this)">2</button><button onclick="setRef(this)">3</button><button onclick="setRef(this)">4</button><button onclick="setRef(this)">5</button></div>
+            <div class="dots-end"><span>none</span><span>profound</span></div>
+          </div>
+          <textarea class="text-input" placeholder="name the emotions"></textarea>
+        </div>
+
+        <div class="btn-row" style="margin-top:18px">
+          <button class="btn ghost fixed" onclick="reflectBack()">Back</button>
+          <button class="btn" id="refl-next-btn" onclick="reflectNext()">Next →</button>
+        </div>
+      </section>
+
+      <!-- ════════════════════ STATE DELTA ════════════════════ -->
+      <section class="scr" id="s-delta">
+        <div class="top-row">
+          <span></span>
+          <div class="crumb">your state delta</div>
+          <span class="right-icon">⋯</span>
+        </div>
+
+        <div class="session-title">Threshold I</div>
+        <div class="session-meta">Aoife Wren · <span class="cat">Healing · Deep</span> · 25:00</div>
+
+        <!-- 6-axis hexagon radar -->
+        <div class="radar-card">
+          <div class="h">Phenomenological state · 6 dimensions</div>
+          <svg viewBox="0 0 320 280" width="100%">
+            <!-- grid hexagons -->
+            <g stroke="#1c1c28" stroke-width="1" fill="none">
+              <polygon points="160,30 255.3,85 255.3,195 160,250 64.7,195 64.7,85"/>
+              <polygon points="160,52 236.2,96 236.2,184 160,228 83.8,184 83.8,96" stroke-opacity=".65"/>
+              <polygon points="160,74 217.2,107 217.2,173 160,206 102.8,173 102.8,107" stroke-opacity=".5"/>
+              <polygon points="160,96 198.1,118 198.1,162 160,184 121.9,162 121.9,118" stroke-opacity=".35"/>
+              <polygon points="160,118 179.1,129 179.1,151 160,162 140.9,151 140.9,129" stroke-opacity=".25"/>
+            </g>
+            <g stroke="#1c1c28" stroke-width="1">
+              <line x1="160" y1="140" x2="160" y2="30"/>
+              <line x1="160" y1="140" x2="255.3" y2="85"/>
+              <line x1="160" y1="140" x2="255.3" y2="195"/>
+              <line x1="160" y1="140" x2="160" y2="250"/>
+              <line x1="160" y1="140" x2="64.7" y2="195"/>
+              <line x1="160" y1="140" x2="64.7" y2="85"/>
+            </g>
+            <!-- BEFORE (subjective baseline from check-in): Somatic 2.0 Cognitive 2.5 Visual 1.4 Metaphoric 1.8 Memories 2.2 Emotional 2.4 -->
+            <polygon
+              points="160,96 198.1,118 187.5,155.4 160,184 117.0,164.2 114.2,113.6"
+              fill="#5a6678" fill-opacity=".22"
+              stroke="#7c8a9c" stroke-width="1.4" stroke-dasharray="3 3"/>
+            <!-- AFTER (reflected): Somatic 3.8 Cognitive 4.2 Visual 4.6 Metaphoric 4.0 Memories 3.5 Emotional 4.5 -->
+            <polygon
+              points="160,56.4 240.5,93.8 247.7,190.6 160,228 93.2,178.5 74.2,99.5"
+              fill="#d4825e" fill-opacity=".28"
+              stroke="#d4825e" stroke-width="1.8"/>
+            <!-- axis points -->
+            <g fill="#7c8a9c">
+              <circle cx="160" cy="96" r="2.5"/>
+              <circle cx="198.1" cy="118" r="2.5"/>
+              <circle cx="187.5" cy="155.4" r="2.5"/>
+              <circle cx="160" cy="184" r="2.5"/>
+              <circle cx="117.0" cy="164.2" r="2.5"/>
+              <circle cx="114.2" cy="113.6" r="2.5"/>
+            </g>
+            <g fill="#d4825e">
+              <circle cx="160" cy="56.4" r="3"/>
+              <circle cx="240.5" cy="93.8" r="3"/>
+              <circle cx="247.7" cy="190.6" r="3"/>
+              <circle cx="160" cy="228" r="3"/>
+              <circle cx="93.2" cy="178.5" r="3"/>
+              <circle cx="74.2" cy="99.5" r="3"/>
+            </g>
+            <!-- labels -->
+            <g font-family="Inter" font-size="10" fill="#a8a59c" font-weight="500" letter-spacing=".5">
+              <text x="160" y="22" text-anchor="middle">SOMATIC</text>
+              <text x="263" y="83" text-anchor="start">COGNITIVE</text>
+              <text x="263" y="200" text-anchor="start">VISUAL</text>
+              <text x="160" y="268" text-anchor="middle">METAPHORIC</text>
+              <text x="57" y="200" text-anchor="end">MEMORIES</text>
+              <text x="57" y="83" text-anchor="end">EMOTIONAL</text>
+            </g>
+          </svg>
+          <div class="legend"><span class="dot b"></span>before &nbsp; <span class="dot a"></span>after</div>
+        </div>
+
+        <!-- dimension list -->
+        <div class="dimension-list">
+          <div class="dim-row">
+            <span class="pip" style="background:var(--healing)"></span>
+            <span class="l"><b>Somatic</b> · body activation, kinetic</span>
+            <span class="v">+1.8</span>
+          </div>
+          <div class="dim-row">
+            <span class="pip" style="background:var(--accent)"></span>
+            <span class="l"><b>Cognitive</b> · insight, clarity</span>
+            <span class="v">+1.7</span>
+          </div>
+          <div class="dim-row">
+            <span class="pip" style="background:var(--expansion)"></span>
+            <span class="l"><b>Visual</b> · visions, fractals, colour</span>
+            <span class="v">+3.2</span>
+          </div>
+          <div class="dim-row">
+            <span class="pip" style="background:var(--arrival)"></span>
+            <span class="l"><b>Metaphoric</b> · symbol, archetype</span>
+            <span class="v">+2.2</span>
+          </div>
+          <div class="dim-row">
+            <span class="pip" style="background:var(--warn)"></span>
+            <span class="l"><b>Memories</b> · past, returning</span>
+            <span class="v">+1.3</span>
+          </div>
+          <div class="dim-row">
+            <span class="pip" style="background:var(--bad)"></span>
+            <span class="l"><b>Emotional</b> · feelings moved</span>
+            <span class="v">+2.1</span>
+          </div>
+        </div>
+
+        <!-- HRV / parasympathetic ribbon -->
+        <div class="hrv-card">
+          <div class="hrv-head">
+            <div class="l">HRV during session</div>
+            <div class="v">54 → <b>71 ms</b></div>
+          </div>
+          <svg viewBox="0 0 320 60" width="100%" height="60">
+            <defs>
+              <linearGradient id="hg" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0" stop-color="#7cbf7c" stop-opacity=".35"/>
+                <stop offset="1" stop-color="#7cbf7c" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <path d="M0,42 L20,40 L40,44 L60,38 L80,36 L100,33 L120,30 L140,28 L160,25 L180,22 L200,19 L220,17 L240,15 L260,14 L280,12 L300,11 L320,10 L320,60 L0,60 Z" fill="url(#hg)"/>
+            <path d="M0,42 L20,40 L40,44 L60,38 L80,36 L100,33 L120,30 L140,28 L160,25 L180,22 L200,19 L220,17 L240,15 L260,14 L280,12 L300,11 L320,10" stroke="#7cbf7c" stroke-width="2" fill="none"/>
+          </svg>
+          <div class="para-row">
+            <div class="p"><div class="l">HEART RATE</div><div class="v">−6 bpm</div></div>
+            <div class="p"><div class="l">PARASYMPATHETIC</div><div class="v">+21%</div></div>
+            <div class="p"><div class="l">HRV GAIN</div><div class="v">+17 ms</div></div>
+          </div>
+        </div>
+
+        <!-- ARTIST CARD (active imagination link) -->
+        <div class="artist-card" onclick="alert('Opens artist profile inside Awe Field — bio, body of work, recording context. Used in active imagination practice: knowing the artist as a partner in the journey.')">
+          <div class="av"></div>
+          <div class="body">
+            <div class="lbl">JOURNEY BY</div>
+            <div class="name">Aoife Wren</div>
+            <div class="sub">Composer · West Cork · drone, breath, bowed metal. Recorded in a converted granary over a long winter.</div>
+            <div class="ai-note">↗ open profile · active imagination</div>
+          </div>
+          <div class="arrow">›</div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn" onclick="go('myfield')">Save to My Field →</button>
+          <button class="btn ghost fixed" onclick="alert('Email report queued.')">Email</button>
+        </div>
+      </section>
+
+      <!-- ════════════════════ MY FIELD ════════════════════ -->
+      <section class="scr" id="s-myfield">
+        <div class="top-row">
+          <button class="back" onclick="go('mode')">‹ New journey</button>
+          <div class="crumb">my field</div>
+          <span class="right-icon">⚙</span>
+        </div>
+
+        <h1>My Field.</h1>
+        <p class="lede">Your archive of acoustic states. The engine reads this every time it matches.</p>
+
+        <div class="field-stat-row">
+          <div class="f-stat"><div class="l">Sessions</div><div class="v">142</div><div class="d">↑ 12 this month</div></div>
+          <div class="f-stat"><div class="l">Avg HRV gain</div><div class="v">+13<small style="font-size:11px;color:var(--text-2)">ms</small></div><div class="d">↑ 2 ms</div></div>
+          <div class="f-stat"><div class="l">Streak</div><div class="v">14</div><div class="d">personal best</div></div>
+        </div>
+
+        <div class="pattern-card">
+          <div class="h"><span class="dot"></span>Patterns the engine sees in you</div>
+          <b>Voice-rich tracks</b> produce <span class="num">1.6×</span> your usual affective shift (n=14).<br>
+          <b>Healing · Deep</b> consistently moves you on the <b>visual</b> dimension (mean <span class="num">+2.8</span>).<br>
+          <b>Tuesday evenings</b> show your strongest <b>somatic</b> reductions.
+        </div>
+
+        <div class="section-h" style="margin-top:14px">Recent journeys</div>
+        <div class="field-row">
+          <div class="date">13 May</div>
+          <div class="body"><div class="t">Threshold I</div><div class="m">Healing · Deep · 25:00</div></div>
+          <div class="right">+17 ms<br><span class="neg">visual 4.6</span></div>
+        </div>
+        <div class="field-row">
+          <div class="date">9 May</div>
+          <div class="body"><div class="t">Soft Return</div><div class="m">Healing · Gentle · 15:00</div></div>
+          <div class="right">+11 ms<br><span class="neg">emot. 3.9</span></div>
+        </div>
+        <div class="field-row">
+          <div class="date">4 May</div>
+          <div class="body"><div class="t">Aperture</div><div class="m">Expansion · Deep · 30:00</div></div>
+          <div class="right">+18 ms<br><span class="neg">cog. 4.4</span></div>
+        </div>
+        <div class="field-row">
+          <div class="date">27 Apr</div>
+          <div class="body"><div class="t">Beyond the Skin</div><div class="m">Expansion · Immersive · 50:00</div></div>
+          <div class="right">+22 ms<br><span class="neg">vis. 4.9</span></div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- bottom nav (hidden on onboarding/manifesto) -->
+    <div class="nav" id="nav">
+      <div class="item on" onclick="go('mode')"><div class="icon h"></div><span>HOME</span></div>
+      <div class="item" onclick="go('checkin')"><div class="icon c"></div><span>STATE</span></div>
+      <div class="item" onclick="go('myfield')"><div class="icon r"></div><span>MY FIELD</span></div>
+      <div class="item"><div class="icon"></div><span>MORE</span></div>
+    </div>
+  </div>
+
+  <div class="dev-label" style="margin-top:24px;color:var(--text-3);max-width:560px;line-height:1.6">
+    Click through: <b>onb1 → onb2 → onb3 → manifesto → mode → category → depth → check-in → recommendation → prep → countdown → player → reflection (6 dim) → state delta → my field</b>.<br>
+    Onboarding answers tier the manifesto. Hypnotic visual on player breathes with simulated HRV. Audio is mocked; production uses signed-URL streaming.
+  </div>
+</div>
+
+<script>
+/* ─── STATE ─── */
+const profile = { exp:null, psy:null, psyq:null, path:null };
+let category = 'healing';
+let depth = 'deep';
+let reflectionStep = 1;
+const REFL_TOTAL = 6;
+let cdInterval = null, playInterval = null, breathInterval = null;
+let elapsed = 0;
+const DURATION = 1500;
+let liveHRV = 54, liveBPM = 64, liveArousal = 1.8, livePara = 41;
+
+/* ─── NAV ─── */
+function go(name){
+  // category background tint
+  if(['recommend','prep','countdown','player','delta','reflection'].includes(name)){
+    document.body.dataset.cat = category;
+  } else if(['mode','myfield','checkin','category','depth'].includes(name)){
+    document.body.dataset.cat = category;
+  } else {
+    document.body.dataset.cat = 'healing';
+  }
+  // hide nav on onboarding + manifesto
+  const navHidden = ['onb1','onb2','onb3','manifesto','countdown','player'].includes(name);
+  document.getElementById('nav').style.display = navHidden ? 'none' : 'flex';
+
+  document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));
+  document.getElementById('s-'+name).classList.add('on');
+  document.querySelector('.screen-area').scrollTop = 0;
+
+  if(name === 'countdown') startCountdown();
+  if(name === 'player') startPlayer();
+  if(name === 'manifesto') renderManifesto();
+  if(name === 'depth') document.getElementById('depth-cat-crumb').textContent = category;
+}
+
+/* ─── ONBOARDING ─── */
+function setLikert(btn, key, val){
+  btn.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  profile[key] = val;
+}
+function setYN(btn, key, val){
+  btn.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  profile[key] = val;
+  if(key === 'psy') document.getElementById('psy-detail').style.display = val === 'yes' ? 'block' : 'none';
+  if(key === 'path') document.getElementById('path-detail').style.display = val === 'yes' ? 'block' : 'none';
+}
+
+/* ─── MANIFESTO (tiered) ─── */
+function renderManifesto(){
+  const exp = profile.exp ?? 0;
+  let tier, tag, p1;
+  if(exp <= 3){
+    tier = 'beginner';
+    tag = 'Welcome · new to this';
+    p1 = `<p>You're early on this path. We'll go gently. Each session is a small experiment in attention — and what attention can do to the body, the mind, and the way a day rests at the end of it.</p>`;
+  } else if(exp <= 7){
+    tier = 'intermediate';
+    tag = 'Welcome back';
+    p1 = `<p>You already know what intentional listening can do. Awe Field meets you where you are. Some of the journeys here will move differently than the ones you know — denser, slower, less obvious. Trust the depth selector.</p>`;
+  } else {
+    tier = 'practitioner';
+    tag = 'Welcome · practitioner';
+    p1 = `<p>You've been here before. Awe Field assumes a practitioner-level relationship to deep listening — facilitator, integration therapist, longtime psychonaut, ceremonial musician. Immersive is unlocked. The engine respects what you bring.</p>`;
+  }
+  document.getElementById('tier-tag').textContent = tag;
+  const h = `Awe Field is not a wellness app. <em>It is a protocol.</em>`;
+  document.getElementById('manifesto-h').innerHTML = h;
+  document.getElementById('manifesto-p1').outerHTML =
+    `<p id="manifesto-p1">A protocol you can learn to change or enhance the relationship you have with yourself and the world you inhabit.</p>` + p1;
+  document.getElementById('manifesto-p2').innerHTML = `With this protocol you can gain insights about your life, build resilience, become more aware of your internal needs, process emotions — or go further, into exploration with the bigger consciousness.`;
+  document.getElementById('manifesto-p3').innerHTML = `Read more on our website for tutorials and the science behind Awe Field. <a class="link">awefield.io →</a>`;
+}
+
+/* ─── CATEGORY / DEPTH ─── */
+function setCategory(c){ category = c; }
+function setDepth(d){ depth = d; }
+
+/* ─── CHECK-IN SLIDERS ─── */
+const labels = {
+  body:    {1:'depleted',2:'depleted',3:'low',4:'heavy chest, restless shoulders',5:'neutral',6:'present',7:'easing',8:'soft',9:'fluid',10:'radiant'},
+  mood:    {1:'flat',2:'flat',3:'low',4:'muted',5:'somewhere in between',6:'steady',7:'lifting',8:'warm',9:'bright',10:'lit'},
+  energy:  {1:'depleted',2:'depleted',3:'low but wired',4:'tired',5:'level',6:'awake',7:'gathering',8:'active',9:'high',10:'activated'}
+};
+function updateSlider(el, valId, key){
+  const v = parseInt(el.value);
+  document.getElementById(valId).textContent = `${v} — ${labels[key][v]}`;
+}
+function toggleChip(el){ el.classList.toggle('on'); }
+
+/* ─── RECOMMENDATION ─── */
+function findAnother(){
+  alert('Engine notes this preference. Returning a new match — and weighting "voice-rich · Healing · Deep" lower for future Tuesday-evening matches.\n\nThis is the data flywheel: every rejection is also a label.');
+}
+
+/* ─── PREP / COUNTDOWN ─── */
+function checkPrep(){
+  const total = document.querySelectorAll('#prep-list li').length;
+  const done = document.querySelectorAll('#prep-list li.done').length;
+  document.getElementById('begin-btn').disabled = done < total;
+}
+function startCountdown(){
+  let n = 10;
+  const el = document.getElementById('cd-num');
+  el.textContent = n;
+  if(cdInterval) clearInterval(cdInterval);
+  cdInterval = setInterval(()=>{
+    n--;
+    if(n <= 0){ clearInterval(cdInterval); go('player'); return; }
+    el.textContent = n;
+  }, 1000);
+}
+
+/* ─── PLAYER + HYPNOTIC BREATH ─── */
+function startPlayer(){
+  elapsed = 0;
+  liveHRV = 54; liveBPM = 64; liveArousal = 1.8; livePara = 41;
+  document.getElementById('live-hrv').textContent = liveHRV;
+  document.getElementById('live-bpm').textContent = liveBPM;
+  document.getElementById('live-para').textContent = livePara + '%';
+  document.getElementById('play-bar').style.width = '0%';
+  startTicker();
+  startBreath();
+}
+function startTicker(){
+  if(playInterval) clearInterval(playInterval);
+  playInterval = setInterval(()=>{
+    elapsed += 30;
+    const pct = Math.min(100, (elapsed/DURATION)*100);
+    document.getElementById('play-bar').style.width = pct + '%';
+    liveHRV = Math.min(74, liveHRV + 0.55 + (Math.random()*0.4 - 0.2));
+    liveBPM = Math.max(54, liveBPM - 0.07 + (Math.random()*0.2 - 0.1));
+    livePara = Math.min(82, livePara + 0.65 + (Math.random()*0.4 - 0.2));
+    document.getElementById('live-hrv').textContent = Math.round(liveHRV);
+    document.getElementById('live-bpm').textContent = Math.round(liveBPM);
+    document.getElementById('live-para').textContent = Math.round(livePara) + '%';
+    document.getElementById('live-hrv-delta').textContent = `+${Math.round(liveHRV - 54)} from start`;
+    document.getElementById('live-bpm-delta').textContent = `${Math.round(liveBPM - 64)} from start`;
+    document.getElementById('live-para-delta').textContent = `↑ from 41%`;
+    if(elapsed >= DURATION){
+      clearInterval(playInterval); playInterval = null;
+      finishJourney();
+    }
+  }, 200);
+}
+/* HRV-driven breath visual — slower as HRV rises, more diffuse halo */
+function startBreath(){
+  if(breathInterval) clearInterval(breathInterval);
+  let phase = 0;
+  const haloC = document.getElementById('halo-c');
+  const coreC = document.getElementById('core-c');
+  const r1 = document.getElementById('ring-1');
+  const r2 = document.getElementById('ring-2');
+  const r3 = document.getElementById('ring-3');
+  breathInterval = setInterval(()=>{
+    phase += 0.05;
+    // breath cycle: slower as HRV rises
+    const cycleSpeed = 0.04 + (74 - liveHRV) * 0.005;
+    phase += cycleSpeed;
+    const b = (Math.sin(phase) + 1) / 2; // 0..1
+    // halo scale: 0.85 → 1.18, depending on b and HRV
+    const haloScale = 0.85 + b * 0.33;
+    const coreScale = 0.6 + b * 0.8;
+    const haloOpacity = 0.5 + b * 0.4 + (liveHRV - 54) * 0.01;
+    haloC.setAttribute('r', 120 * haloScale);
+    haloC.setAttribute('opacity', Math.min(1, haloOpacity).toFixed(2));
+    coreC.setAttribute('r', 38 * coreScale);
+    // rings rotate-ish: scale subtly
+    r1.setAttribute('r', 56 * (0.95 + b*0.1));
+    r2.setAttribute('r', 78 * (0.97 + b*0.06));
+    r3.setAttribute('r', 100 * (0.99 + b*0.03));
+  }, 50);
+}
+function finishJourney(){
+  if(playInterval) clearInterval(playInterval);
+  if(breathInterval) clearInterval(breathInterval);
+  go('reflection');
+  reflectionStep = 1;
+  showReflStep(1);
+}
+
+/* ─── REFLECTION STEPPER ─── */
+function setRef(btn){
+  btn.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+}
+function showReflStep(n){
+  document.querySelectorAll('.refl-step').forEach(s=>{
+    s.style.display = parseInt(s.dataset.step) === n ? 'block' : 'none';
+  });
+  document.getElementById('refl-prog').textContent = `${n} of ${REFL_TOTAL}`;
+  document.getElementById('refl-next-btn').textContent = n === REFL_TOTAL ? 'See your state delta →' : 'Next →';
+}
+function reflectNext(){
+  if(reflectionStep < REFL_TOTAL){
+    reflectionStep++;
+    showReflStep(reflectionStep);
+  } else {
+    go('delta');
+  }
+}
+function reflectBack(){
+  if(reflectionStep > 1){
+    reflectionStep--;
+    showReflStep(reflectionStep);
+  }
+}
+
+/* clock */
+function tickClock(){
+  const d = new Date();
+  document.getElementById('clock').textContent = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+tickClock(); setInterval(tickClock, 30000);
+
+/* initial nav state */
+document.getElementById('nav').style.display = 'none';
+</script>
+</body>
+</html>
